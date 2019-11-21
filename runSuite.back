@@ -1,0 +1,88 @@
+#!/bin/bash
+
+#${1}: suite-file is the name of a file containing a list of filename stem
+#${2}: program
+
+#check the number of command line arguments
+if [ ${#} -ne 2 ]; then
+   echo "incorrect number of command line arguments"
+   exit 1
+fi
+
+#check if the program can be executed
+if [ ! -x ${2} ]; then
+   chmod +x ${2}
+fi
+
+parentdir="$(dirname "${1}")"
+
+for file in $(cat "${1}"); do
+
+   #check if .args file exists
+   if [ ! -e "${parentdir}/$file.args" ]; then
+      touch ${parentdir}/$file.args
+   fi
+
+   #check if .args file is readable
+   if [ ! -r "${parentdir}/$file.args" ]; then
+      chmod +r ${parentdir}/$file.args
+   fi
+
+   #check if .out file exists
+   if [ ! -e "${parentdir}/$file.out" ]; then
+      echo "$file.out file does not exist"
+      exit 1
+   fi
+
+   #check if .out file is readable
+   if [ ! -r "${parentdir}/$file.out" ]; then
+      echo "$file.out is unreadable"
+      exit 1
+   fi
+
+   tempfile=$(mktemp)
+
+   #check if .in file exists
+   if [ ! -e "${parentdir}/$file.in" ]; then
+      #run program
+      ./${2} $(cat ${parentdir}/$file.args)  > $tempfile
+     
+      cmp -s $tempfile ${parentdir}/$file.out
+      if [ ${?} -eq 1 ]; then
+         echo "Test failed: $file"
+         echo "Args:"
+         cat $file.args
+         echo "Input:"
+         echo "Expected:"
+         cat $file.out
+         echo "Actual:"
+         cat $tempfile
+      fi
+
+   else
+
+      #check if .in file is readable
+      if [ ! -r "${parentdir}/$file.in" ]; then
+         chmod +r ${parentdir}/$file.in
+      fi
+
+      #run program
+      ./${2} $(cat ${parentdir}/$file.args) < ${parentdir}/$file.in > $tempfile
+
+      #compare the contents
+      cmp -s $tempfile ${parentdir}/$file.out
+      if [ ${?} -eq 1 ]; then
+         echo "Test failed: $file"
+         echo "Args:"
+         cat $file.args
+         echo "Input:"
+         cat $file.in
+         echo "Expected:"
+         cat $file.out
+         echo "Actual:"
+         cat $tempfile
+      fi
+
+   fi
+   rm $tempfile
+done
